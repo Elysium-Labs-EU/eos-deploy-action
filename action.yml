@@ -1,0 +1,44 @@
+name: 'eos Deploy'
+description: 'SSH into a remote host and deploy a service via eos api run. eos must be pre-installed on the remote host.'
+author: 'Elysium Labs'
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
+
+inputs:
+  host:
+    description: 'Remote host address'
+    required: true
+  username:
+    description: 'SSH username'
+    required: true
+  key:
+    description: 'SSH private key'
+    required: true
+  port:
+    description: 'SSH port'
+    required: false
+    default: '22'
+  service_yaml:
+    description: 'Path to service.yaml on the remote host (absolute or relative to target_dir)'
+    required: true
+  target_dir:
+    description: 'Base directory on remote host for resolving relative service_yaml paths'
+    required: false
+    default: ''
+
+outputs:
+  status:
+    description: '"restarted" if service was restarted, "started" if started fresh'
+
+runs:
+  using: docker
+  image: docker://ghcr.io/elysium-labs/eos-deploy-action:v1
+  env:
+    SSH_HOST: ${{ inputs.host }}
+    SSH_USER: ${{ inputs.username }}
+    SSH_KEY: ${{ inputs.key }}
+    SSH_PORT: ${{ inputs.port }}
+    SERVICE_YAML: ${{ inputs.service_yaml }}
+    TARGET_DIR: ${{ inputs.target_dir }}

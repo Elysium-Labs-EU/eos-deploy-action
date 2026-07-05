@@ -1,0 +1,37 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  TARGET_DIR: /opt/myapp
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # ... your build steps here ...
+
+  refresh-eos:
+    name: Restart eos service
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via eos
+        id: deploy
+        uses: ./eos-deploy-action   # or: elysium-labs/eos-deploy-action@v1
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          service_yaml: service.yaml        # relative to target_dir
+          target_dir: ${{ env.TARGET_DIR }}
+          eos_version: latest               # or pin: v0.3.1
+
+      - name: Report status
+        run: echo "Deploy status: ${{ steps.deploy.outputs.status }}"
