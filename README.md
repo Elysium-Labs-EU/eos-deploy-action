@@ -24,3 +24,7 @@ Shell scripts are linted with ShellCheck on every push and pull request. A pre-c
 ## How it is managed
 
 `make help` lists all available commands. Use `make lint` to run ShellCheck locally, `make build` to build the Docker image, and `make release TAG=v0.1.0` to tag and push a release. CI publishes the image to GHCR on every version tag.
+
+## License
+
+MIT
