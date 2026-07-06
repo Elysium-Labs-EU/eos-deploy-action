@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    shellcheck:
+      glob: "scripts/*.sh"
+      run: shellcheck {staged_files}
+      priority: 1
