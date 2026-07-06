@@ -41,7 +41,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/elysium-labs/eos-deploy-action
+          images: ghcr.io/elysium-labs-eu/eos-deploy-action
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern=v{{major}}

@@ -34,7 +34,7 @@ outputs:
 
 runs:
   using: docker
-  image: docker://ghcr.io/elysium-labs/eos-deploy-action:v1
+  image: docker://ghcr.io/elysium-labs-eu/eos-deploy-action:v0
   env:
     SSH_HOST: ${{ inputs.host }}
     SSH_USER: ${{ inputs.username }}
