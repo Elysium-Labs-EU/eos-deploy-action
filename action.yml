@@ -1,4 +1,4 @@
-name: 'eos Deploy'
+name: 'eos Service Deploy'
 description: 'SSH into a remote host and deploy a service via eos api run. eos must be pre-installed on the remote host.'
 author: 'Elysium Labs'
 
