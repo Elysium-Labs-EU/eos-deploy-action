@@ -3,8 +3,8 @@ description: 'SSH into a remote host and deploy a service via eos api run. eos m
 author: 'Elysium Labs'
 
 branding:
-  icon: 'upload-cloud'
-  color: 'blue'
+  icon: 'send'
+  color: 'orange'
 
 inputs:
   host:
