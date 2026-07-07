@@ -27,18 +27,33 @@ inputs:
     description: 'Base directory on remote host for resolving relative service_yaml paths'
     required: false
     default: ''
+  connect_timeout:
+    description: 'SSH connection timeout in seconds'
+    required: false
+    default: '30'
+  command_timeout:
+    description: 'Remote command execution timeout in seconds'
+    required: false
+    default: '300'
 
 outputs:
   status:
     description: '"restarted" if service was restarted, "started" if started fresh'
+    value: ${{ steps.deploy.outputs.status }}
 
 runs:
-  using: docker
-  image: docker://ghcr.io/elysium-labs-eu/eos-deploy-action:v0
-  env:
-    SSH_HOST: ${{ inputs.host }}
-    SSH_USER: ${{ inputs.username }}
-    SSH_KEY: ${{ inputs.key }}
-    SSH_PORT: ${{ inputs.port }}
-    SERVICE_YAML: ${{ inputs.service_yaml }}
-    TARGET_DIR: ${{ inputs.target_dir }}
+  using: composite
+  steps:
+    - name: Deploy via eos
+      id: deploy
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.host }}
+        SSH_USER: ${{ inputs.username }}
+        SSH_KEY: ${{ inputs.key }}
+        SSH_PORT: ${{ inputs.port }}
+        SERVICE_YAML: ${{ inputs.service_yaml }}
+        TARGET_DIR: ${{ inputs.target_dir }}
+        SSH_CONNECT_TIMEOUT: ${{ inputs.connect_timeout }}
+        SSH_COMMAND_TIMEOUT: ${{ inputs.command_timeout }}
+      run: ${{ github.action_path }}/scripts/deploy.sh
