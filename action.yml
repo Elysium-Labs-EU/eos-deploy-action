@@ -35,6 +35,10 @@ inputs:
     description: 'Remote command execution timeout in seconds'
     required: false
     default: '300'
+  known_hosts:
+    description: 'Expected SSH host key line(s) for the target (ssh-keyscan format). Strongly recommended: without it, host identity is trusted on every run with no MITM protection, since CI runners have no persistent known_hosts.'
+    required: false
+    default: ''
 
 outputs:
   status:
@@ -56,4 +60,5 @@ runs:
         TARGET_DIR: ${{ inputs.target_dir }}
         SSH_CONNECT_TIMEOUT: ${{ inputs.connect_timeout }}
         SSH_COMMAND_TIMEOUT: ${{ inputs.command_timeout }}
+        SSH_KNOWN_HOSTS: ${{ inputs.known_hosts }}
       run: ${{ github.action_path }}/scripts/deploy.sh

@@ -9,6 +9,7 @@ SERVICE_YAML="${SERVICE_YAML:?SERVICE_YAML must be set}"
 TARGET_DIR="${TARGET_DIR:-}"
 SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-30}"
 SSH_COMMAND_TIMEOUT="${SSH_COMMAND_TIMEOUT:-300}"
+SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-}"
 
 # ── SSH key — load into agent, never touch disk ──────────────────────────────
 
@@ -21,6 +22,22 @@ if ! echo "$SSH_KEY" | ssh-keygen -y -P "" -f /dev/stdin > /dev/null 2>&1; then
 fi
 
 echo "$SSH_KEY" | ssh-add -
+
+# ── host key verification ────────────────────────────────────────────────────
+# CI runners have no persistent known_hosts, so accept-new gives zero real
+# protection: every run looks like a "first connection" and silently trusts
+# whatever key is presented. If known_hosts is supplied, pin it and verify
+# strictly; otherwise fall back to the old (unverified) behavior.
+
+if [[ -n "$SSH_KNOWN_HOSTS" ]]; then
+    KNOWN_HOSTS_FILE=$(mktemp)
+    trap 'rm -f "$KNOWN_HOSTS_FILE"' EXIT
+    echo "$SSH_KNOWN_HOSTS" > "$KNOWN_HOSTS_FILE"
+    SSH_HOST_KEY_OPTS=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_FILE")
+else
+    echo "Warning: known_hosts not set, host identity is not verified (accept-new). See action input 'known_hosts'."
+    SSH_HOST_KEY_OPTS=(-o StrictHostKeyChecking=accept-new)
+fi
 
 # ── resolve path ─────────────────────────────────────────────────────────────
 
@@ -68,13 +85,16 @@ fi
 REMOTE
 )
 
+printf -v QUOTED_YAML '%q' "$RESOLVED_YAML"
+printf -v QUOTED_TIMEOUT '%q' "$SSH_COMMAND_TIMEOUT"
+
 output=$(ssh \
-    -o StrictHostKeyChecking=accept-new \
+    "${SSH_HOST_KEY_OPTS[@]}" \
     -o BatchMode=yes \
     -o ConnectTimeout="$SSH_CONNECT_TIMEOUT" \
     -p "$SSH_PORT" \
     "$SSH_USER@$SSH_HOST" \
-    "bash -s -- '$RESOLVED_YAML' '$SSH_COMMAND_TIMEOUT'" <<< "$REMOTE_SCRIPT")
+    "bash -s -- $QUOTED_YAML $QUOTED_TIMEOUT" <<< "$REMOTE_SCRIPT")
 
 exit_code=$?
 
