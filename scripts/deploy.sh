@@ -41,7 +41,7 @@ SERVICE_YAML="$1"
 COMMAND_TIMEOUT="$2"
 
 if ! command -v eos &>/dev/null; then
-    echo "eos not found on remote host. Install: https://codeberg.org/Elysium_Labs/eos/releases"
+    echo "eos not found on remote host. Install: https://github.com/Elysium-Labs-EU/eos/releases"
     exit 1
 fi
 
