@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check spelling
-        uses: crate-ci/typos@0fa392de4a080a8f22469c05415090ee3addf4fb # v1.28.4
+        uses: crate-ci/typos@9d890159570d5018df91fedfa40b4730cd4a81b1 # v1.28.4
 
   file-size-guard:
     if: github.event_name == 'pull_request'
