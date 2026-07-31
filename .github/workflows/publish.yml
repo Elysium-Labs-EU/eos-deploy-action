@@ -20,8 +20,27 @@ jobs:
         with:
           scandir: './scripts'
 
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check spelling
+        uses: crate-ci/typos@v1.28.4
+
+  file-size-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check for oversized files not tracked via Git LFS
+        run: ./scripts/check-large-files.sh "origin/${{ github.base_ref }}"
+
   publish:
-    needs: lint
+    needs: [lint, typos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
