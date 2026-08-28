@@ -17,6 +17,27 @@ Connects to your server over SSH and tells eos to run the service defined by a `
 
 Outputs `status: restarted` or `status: started` for use in downstream steps.
 
+## Tag Guard
+
+A separate composite action, `eos-deploy-action/tag-guard`, blocks a release
+workflow from tagging a version whose `MAJOR.MINOR.PATCH` already shipped as
+a stable release. Per semver, a pre-release always ranks below its own
+release (`v0.0.13-rc.10 < v0.0.13`), so a pre-release tag cut after that line
+already went stable can never be selected by an update check — silently.
+It also blocks exact tag reuse. It does not require the new tag to be the
+highest ever cut, so a backport release on an older line stays allowed.
+
+```yaml
+jobs:
+  tag-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: elysium-labs-eu/eos-deploy-action/tag-guard@v0
+        with:
+          version: ${{ github.ref_name }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
 ## How it is tested
 
 Shell scripts are linted with ShellCheck on every push and pull request. A pre-commit hook via lefthook runs the same check locally before any commit reaches CI.
