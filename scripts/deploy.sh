@@ -11,17 +11,47 @@ SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-30}"
 SSH_COMMAND_TIMEOUT="${SSH_COMMAND_TIMEOUT:-300}"
 SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-}"
 
-# ── SSH key — load into agent, never touch disk ──────────────────────────────
+# Inputs are never echoed back: a value with a newline could forge workflow commands.
+for var in SSH_PORT SSH_CONNECT_TIMEOUT SSH_COMMAND_TIMEOUT; do
+    if [[ ! "${!var}" =~ ^[0-9]{1,9}$ ]]; then
+        echo "Error: $var must be a whole number."
+        exit 1
+    fi
+done
 
-eval "$(ssh-agent -s)" > /dev/null
+for var in SSH_CONNECT_TIMEOUT SSH_COMMAND_TIMEOUT; do
+    if (( 10#${!var} < 1 )); then
+        echo "Error: $var must be at least 1 second (0 would disable the limit)."
+        exit 1
+    fi
+done
 
-# Detect passphrase-protected key before attempting to add
-if ! echo "$SSH_KEY" | ssh-keygen -y -P "" -f /dev/stdin > /dev/null 2>&1; then
-    echo "Error: SSH key is passphrase-protected. Passphrase-protected keys are not supported."
+if (( 10#$SSH_PORT < 1 || 10#$SSH_PORT > 65535 )); then
+    echo "Error: SSH_PORT must be between 1 and 65535."
     exit 1
 fi
 
-echo "$SSH_KEY" | ssh-add -
+# ── SSH key — load into agent, never touch disk ──────────────────────────────
+
+KNOWN_HOSTS_FILE=""
+
+cleanup() {
+    [[ -n "$KNOWN_HOSTS_FILE" ]] && rm -f "$KNOWN_HOSTS_FILE"
+    ssh-agent -k > /dev/null 2>&1 || true
+}
+
+eval "$(ssh-agent -s)" > /dev/null
+# Installed only after our own agent exists, so cleanup never kills an inherited one.
+trap cleanup EXIT
+
+# A passphrase-protected key must fail here, not prompt: force askpass to /bin/false.
+# (Probing with ssh-keygen -f /dev/stdin is rejected on macOS: /dev/stdin is mode 0660.)
+if ! add_output=$(printf '%s\n' "$SSH_KEY" \
+    | SSH_ASKPASS="$(command -v false)" SSH_ASKPASS_REQUIRE=force DISPLAY=none ssh-add - 2>&1); then
+    echo "Error: SSH key could not be loaded. It is invalid or passphrase-protected; passphrase-protected keys are not supported."
+    echo "$add_output"
+    exit 1
+fi
 
 # ── host key verification ────────────────────────────────────────────────────
 # CI runners have no persistent known_hosts, so accept-new gives zero real
@@ -31,11 +61,14 @@ echo "$SSH_KEY" | ssh-add -
 
 if [[ -n "$SSH_KNOWN_HOSTS" ]]; then
     KNOWN_HOSTS_FILE=$(mktemp)
-    trap 'rm -f "$KNOWN_HOSTS_FILE"' EXIT
-    echo "$SSH_KNOWN_HOSTS" > "$KNOWN_HOSTS_FILE"
-    SSH_HOST_KEY_OPTS=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_FILE")
+    printf '%s\n' "${SSH_KNOWN_HOSTS//$'\r'/}" > "$KNOWN_HOSTS_FILE"
+    SSH_HOST_KEY_OPTS=(
+        -o StrictHostKeyChecking=yes
+        -o UserKnownHostsFile="$KNOWN_HOSTS_FILE"
+        -o GlobalKnownHostsFile=/dev/null
+    )
 else
-    echo "Warning: known_hosts not set, host identity is not verified (accept-new). See action input 'known_hosts'."
+    echo "::warning title=SSH host key not verified::known_hosts is not set, so the host identity is trusted on first use (accept-new) with no MITM protection. Set the action input 'known_hosts'."
     SSH_HOST_KEY_OPTS=(-o StrictHostKeyChecking=accept-new)
 fi
 
@@ -63,8 +96,11 @@ if ! command -v eos &>/dev/null; then
 fi
 
 deploy_err=$(mktemp)
-result=$(timeout "$COMMAND_TIMEOUT" eos api run -f "$SERVICE_YAML" 2>"$deploy_err")
-exit_code=$?
+trap 'rm -f "$deploy_err"' EXIT
+
+exit_code=0
+# </dev/null: this script arrives on bash's stdin, so eos must not read it.
+result=$(timeout "$COMMAND_TIMEOUT" eos api run -f "$SERVICE_YAML" 2>"$deploy_err" </dev/null) || exit_code=$?
 
 if [[ $exit_code -eq 124 ]]; then
     echo "eos api run timed out after ${COMMAND_TIMEOUT}s"
@@ -77,7 +113,7 @@ if [[ $exit_code -ne 0 ]]; then
     exit 1
 fi
 
-if echo "$result" | grep -q '"restarted":true'; then
+if grep -q '"restarted":true' <<< "$result"; then
     echo "EOS_DEPLOY_STATUS=restarted"
 else
     echo "EOS_DEPLOY_STATUS=started"
@@ -85,32 +121,46 @@ fi
 REMOTE
 )
 
-printf -v QUOTED_YAML '%q' "$RESOLVED_YAML"
-printf -v QUOTED_TIMEOUT '%q' "$SSH_COMMAND_TIMEOUT"
+# POSIX single-quote escaping, safe for sh-family login shells (unlike %q,
+# which can emit $'...' that dash does not parse). csh/tcsh are not supported.
+sh_quote() {
+    local escaped_quote="'\\''"
+    printf "'%s'" "${1//\'/$escaped_quote}"
+}
 
+QUOTED_YAML=$(sh_quote "$RESOLVED_YAML")
+QUOTED_TIMEOUT=$(sh_quote "$SSH_COMMAND_TIMEOUT")
+
+exit_code=0
 output=$(ssh \
     "${SSH_HOST_KEY_OPTS[@]}" \
     -o BatchMode=yes \
     -o ConnectTimeout="$SSH_CONNECT_TIMEOUT" \
     -p "$SSH_PORT" \
+    -- \
     "$SSH_USER@$SSH_HOST" \
-    "bash -s -- $QUOTED_YAML $QUOTED_TIMEOUT" <<< "$REMOTE_SCRIPT")
-
-exit_code=$?
+    "bash -s -- $QUOTED_YAML $QUOTED_TIMEOUT" <<< "$REMOTE_SCRIPT") || exit_code=$?
 
 if [[ $exit_code -ne 0 ]]; then
-    echo "$output"
-    exit $exit_code
+    # Indented so remote text can never start a line with "::" (a workflow command).
+    # shellcheck disable=SC2001  # ${var//} cannot anchor to every line start
+    sed 's/^/  /' <<< "$output"
+    exit "$exit_code"
 fi
 
-# Write status to GITHUB_OUTPUT
-status=$(echo "$output" | grep '^EOS_DEPLOY_STATUS=' | cut -d= -f2 || true)
+# Remote output is untrusted: take the first status line, accept known values only.
+status=$(grep -m1 '^EOS_DEPLOY_STATUS=' <<< "$output" | cut -d= -f2- || true)
+case "$status" in
+    restarted|started) ;;
+    *) status=unknown ;;
+esac
+
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-    echo "status=${status:-unknown}" >> "$GITHUB_OUTPUT"
+    echo "status=$status" >> "$GITHUB_OUTPUT"
 fi
 
-if [[ "$status" == "restarted" ]]; then
-    echo "Service restarted successfully"
-else
-    echo "Service started fresh"
-fi
+case "$status" in
+    restarted) echo "Service restarted successfully" ;;
+    started) echo "Service started fresh" ;;
+    *) echo "Deploy finished, but the service status could not be determined" ;;
+esac
