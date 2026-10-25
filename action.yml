@@ -36,7 +36,7 @@ inputs:
     required: false
     default: '300'
   known_hosts:
-    description: 'Expected SSH host key line(s) for the target (ssh-keyscan format). Strongly recommended: without it, host identity is trusted on every run with no MITM protection, since CI runners have no persistent known_hosts.'
+    description: 'Expected SSH host key line(s) for the target, e.g. "host ssh-ed25519 AAAA..." ("[host]:port ..." for non-22 ports). Read them from the server, not via ssh-keyscan in CI. Strongly recommended: without it, host identity is trusted on every run with no MITM protection, since CI runners have no persistent known_hosts.'
     required: false
     default: ''
 

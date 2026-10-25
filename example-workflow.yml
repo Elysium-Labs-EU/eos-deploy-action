@@ -23,15 +23,15 @@ jobs:
 
       - name: Deploy via eos
         id: deploy
-        uses: ./eos-deploy-action   # or: elysium-labs/eos-deploy-action@v1
+        uses: elysium-labs/eos-deploy-action@v0
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }}
+          known_hosts: ${{ vars.SSH_KNOWN_HOSTS }}   # e.g. "example.com ssh-ed25519 AAAA..."
           service_yaml: service.yaml        # relative to target_dir
           target_dir: ${{ env.TARGET_DIR }}
-          eos_version: latest               # or pin: v0.3.1
 
       - name: Report status
-        run: echo "Deploy status: ${{ steps.deploy.outputs.status }}"
+        run: 'echo "Deploy status: ${{ steps.deploy.outputs.status }}"'

@@ -1,4 +1,4 @@
-.PHONY: help list setup lint lint-fix build test-docker release pre-release clean
+.PHONY: help list setup lint lint-fix build test-docker test-ssh release pre-release clean
 
 IMAGE ?= ghcr.io/elysium-labs/eos-deploy-action
 TAG   ?= dev
@@ -38,7 +38,11 @@ test-docker: build ## Build and smoke-test the Docker image (prints usage withou
 	@echo "--- entrypoint smoke test (expect: SSH_HOST must be set) ---"
 	docker run --rm $(IMAGE):$(TAG) 2>&1 | grep -q "SSH_HOST" && \
 		echo "PASS: entrypoint validates required env vars" || \
-		echo "FAIL: unexpected output"
+		{ echo "FAIL: unexpected output"; exit 1; }
+
+test-ssh: ## End-to-end test of host key pinning and quoting against a Docker sshd
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found"; exit 1; }
+	bash scripts/test-host-key.sh
 
 release: ## Tag and push release (requires TAG=v0.1.0)
 	@if [ -z "$(TAG)" ] || [ "$(TAG)" = "dev" ]; then echo "Usage: make release TAG=v0.1.0"; exit 1; fi

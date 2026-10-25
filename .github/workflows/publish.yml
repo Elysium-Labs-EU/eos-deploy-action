@@ -39,8 +39,16 @@ jobs:
       - name: Check for oversized files not tracked via Git LFS
         run: ./scripts/check-large-files.sh "origin/${{ github.base_ref }}"
 
+  test-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Host key pinning and quoting tests
+        run: make test-ssh
+
   publish:
-    needs: [lint, typos]
+    needs: [lint, typos, test-ssh]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
