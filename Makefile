@@ -25,11 +25,11 @@ setup: ## Install dev tools (shellcheck, lefthook) and git hooks
 
 lint: ## Lint shell scripts with shellcheck
 	@command -v shellcheck >/dev/null 2>&1 || { echo "shellcheck not found. Run: make setup"; exit 1; }
-	shellcheck scripts/*.sh
+	shellcheck scripts/*.sh tag-guard/scripts/*.sh
 
 lint-fix: ## Show shellcheck suggestions interactively
 	@command -v shellcheck >/dev/null 2>&1 || { echo "shellcheck not found. Run: make setup"; exit 1; }
-	shellcheck --format=diff scripts/*.sh || true
+	shellcheck --format=diff scripts/*.sh tag-guard/scripts/*.sh || true
 
 build: ## Build Docker image locally (IMAGE=..., TAG=...)
 	docker build -t $(IMAGE):$(TAG) .

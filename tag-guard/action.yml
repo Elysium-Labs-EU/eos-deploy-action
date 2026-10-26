@@ -1,0 +1,30 @@
+name: 'Elysium Tag Guard'
+description: 'Block re-tagging an already-released version as a pre-release, or exact tag reuse.'
+author: 'Elysium Labs'
+
+branding:
+  icon: 'shield'
+  color: 'orange'
+
+inputs:
+  version:
+    description: 'Tag being released (e.g. v1.0.0 or v1.0.0-rc.1)'
+    required: true
+  repository:
+    description: 'owner/repo to check existing releases against'
+    required: false
+    default: ${{ github.repository }}
+  github_token:
+    description: 'Token with read access to releases on `repository`'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Block re-tagging an already-released version line
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        REPOSITORY: ${{ inputs.repository }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: ${{ github.action_path }}/scripts/tag-guard.sh
